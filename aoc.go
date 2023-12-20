@@ -311,19 +311,19 @@ type Vec2 struct {
 }
 
 func (v *Vec2) SetX(val int16) {
-	v.val = (v.val & 0xffff) + (uint32(uint16(val)) << 16)
-}
-
-func (v *Vec2) SetY(val int16) {
 	v.val = (v.val & (0xffff << 16)) + uint32(uint16(val))
 }
 
+func (v *Vec2) SetY(val int16) {
+	v.val = (v.val & 0xffff) + (uint32(uint16(val)) << 16)
+}
+
 func (v Vec2) X() int16 {
-	return int16(v.val >> 16)
+	return int16(v.val & 0xffff)
 }
 
 func (v Vec2) Y() int16 {
-	return int16(v.val & 0xffff)
+	return int16(v.val >> 16)
 }
 
 func (v Vec2) W() int16 {
@@ -353,13 +353,13 @@ func Vec2Cmp(a, b Vec2) int {
 }
 
 func NewVec2(x, y int16) Vec2 {
-	return Vec2{val: uint32(x)<<16 + uint32(uint16(y))}
+	return Vec2{val: uint32(y)<<16 + uint32(uint16(x))}
 }
 
 type Number struct {
 	Value  int
 	Pos    Vec2
-	Length int8
+	Length int16
 }
 
 type Symbol struct {
@@ -368,19 +368,13 @@ type Symbol struct {
 }
 
 func (s Symbol) IsAdjacentTo(n Number) bool {
-	for _, vOff := range []int16{-1, 1} {
-		for d := int8(-1); d < n.Length+1; d++ {
-			loc := NewVec2(n.Pos.Y()+vOff, n.Pos.X()+int16(d))
-			if loc.Equals(s.Pos) {
-				return true
-			}
-		}
-	}
-
-	left := NewVec2(n.Pos.Y(), n.Pos.X()-1)
-	right := NewVec2(n.Pos.Y(), n.Pos.X()+int16(n.Length))
-	if left.Equals(s.Pos) || right.Equals(s.Pos) {
-		return true
+	vOff := n.Pos.Y() - s.Pos.Y()
+	if vOff == 1 || vOff == -1 {
+		return s.Pos.X() >= n.Pos.X()-1 &&
+			s.Pos.X() <= n.Pos.X()+n.Length
+	} else if vOff == 0 {
+		return s.Pos.X() == n.Pos.X()-1 ||
+			s.Pos.X() == n.Pos.X()+n.Length
 	}
 
 	return false
@@ -388,8 +382,8 @@ func (s Symbol) IsAdjacentTo(n Number) bool {
 
 func (n Number) HasAdjacentSymbols(s Schematic) bool {
 	for _, vOff := range []int16{-1, 1} {
-		for d := int8(-1); d < n.Length+1; d++ {
-			surrounding := s.At(n.Pos.Y()+vOff, n.Pos.X()+int16(d))
+		for d := int16(-1); d < n.Length+1; d++ {
+			surrounding := s.At(n.Pos.Y()+vOff, n.Pos.X()+d)
 			if surrounding != '.' && !unicode.IsDigit(rune(surrounding)) {
 				return true
 			}
@@ -445,29 +439,31 @@ func (s *Schematic) build() {
 		symbols := make([]Symbol, 0, len(s.Lines)*2)
 		numbers := make([]Number, 0, len(s.Lines))
 		for row, line := range s.Lines {
-			numDigits := int8(0)
+			numDigits := int16(0)
 			for c := int16(0); c < int16(len(line)+1); c++ {
 				r := rune(s.At(int16(row), c))
 
 				if unicode.IsDigit(r) {
 					numDigits++
-				} else if numDigits != 0 {
-					val, _ := strconv.Atoi(line[c-int16(numDigits) : c])
-					numbers = append(numbers,
-						Number{
-							Pos:    NewVec2(c-int16(numDigits), int16(row)),
-							Length: numDigits,
-							Value:  val,
-						},
-					)
-					numDigits = 0
-				}
+				} else {
+					if r == '*' {
+						symbols = append(symbols, Symbol{
+							Pos:   NewVec2(int16(c), int16(row)),
+							Value: r,
+						})
+					}
 
-				if r != '.' {
-					symbols = append(symbols, Symbol{
-						Pos:   NewVec2(int16(c), int16(row)),
-						Value: r,
-					})
+					if numDigits != 0 {
+						val, _ := strconv.Atoi(line[c-int16(numDigits) : c])
+						numbers = append(numbers,
+							Number{
+								Pos:    NewVec2(c-int16(numDigits), int16(row)),
+								Length: numDigits,
+								Value:  val,
+							},
+						)
+						numDigits = 0
+					}
 				}
 			}
 		}
@@ -492,7 +488,7 @@ func NewSchematic(lines []string) Schematic {
 }
 
 func Day3() {
-	lines := MustReadFileLines("day3.test")
+	lines := MustReadFileLines("day3.input")
 
 	fmt.Println("Day 3")
 
@@ -500,6 +496,7 @@ func Day3() {
 
 	{ // Part 1
 		total := 0
+
 		for _, num := range schematic.Numbers {
 			if num.HasAdjacentSymbols(schematic) {
 				total += num.Value
@@ -510,8 +507,11 @@ func Day3() {
 	}
 
 	{ // Part 2
+		total := 0
+
 		for _, sym := range schematic.Symbols {
 			nearby := make([]Number, 0, 3)
+			adjacent := make([]Number, 0, 3)
 
 			for _, num := range schematic.Numbers {
 				off := num.Pos.Y() - sym.Pos.Y()
@@ -523,7 +523,19 @@ func Day3() {
 					break
 				}
 			}
+
+			for _, near := range nearby {
+				if sym.IsAdjacentTo(near) {
+					adjacent = append(adjacent, near)
+				}
+			}
+
+			if len(adjacent) == 2 {
+				total += adjacent[0].Value * adjacent[1].Value
+			}
 		}
+
+		fmt.Println("\tPart 2:", strconv.Itoa(total))
 	}
 }
 
