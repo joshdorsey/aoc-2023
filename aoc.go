@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -22,15 +23,14 @@ func Println(args ...any) (n int, err error) {
 }
 
 func MustReadFileLines(path string) []string {
-	file, err := os.Open(path)
+	file, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close()
 
-	lines := make([]string, 0, 100)
+	lines := make([]string, 0, 1024)
 
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(bytes.NewReader(file))
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
@@ -551,8 +551,168 @@ func Day3() {
 
 // Day 4
 
-func Day4() {
+type CardParser struct {
+	Line string
+}
 
+func (p *CardParser) IsEol() bool {
+	return len(p.Line) == 0
+}
+
+func (p *CardParser) SkipWs() {
+	if p.IsEol() {
+		return
+	}
+
+	for unicode.IsSpace(rune(p.Line[0])) {
+		p.Line = p.Line[1:]
+	}
+}
+
+func (p *CardParser) ReadStr(str string) {
+	p.SkipWs()
+
+	if strings.HasPrefix(p.Line, str) {
+		p.Line = p.Line[len(str):]
+	}
+}
+
+func (p *CardParser) ReadChar() byte {
+	p.SkipWs()
+
+	if p.IsEol() {
+		return ' '
+	}
+
+	result := p.Line[0]
+	p.Line = p.Line[1:]
+
+	return result
+}
+
+func (p *CardParser) SkipNum() {
+	p.SkipWs()
+
+	for unicode.IsDigit(rune(p.Line[0])) {
+		p.Line = p.Line[1:]
+	}
+}
+
+func (p *CardParser) ReadNum() int {
+	p.SkipWs()
+
+	if p.IsEol() || !unicode.IsDigit(rune(p.Line[0])) {
+		return -1
+	}
+
+	i := 0
+	for ; i < len(p.Line) && unicode.IsDigit(rune(p.Line[i])); i++ {
+	}
+
+	numStr := p.Line[:i]
+	p.Line = p.Line[i:]
+	num, _ := strconv.ParseUint(numStr, 10, 64)
+	return int(num)
+}
+
+func (p *CardParser) ReadCard() Card {
+	card := Card{
+		Winning: make([]int, 0, 16),
+		Numbers: make([]int, 0, 16),
+	}
+
+	p.ReadStr("Card")
+	p.SkipNum()
+	p.ReadChar()
+
+	num := p.ReadNum()
+	for ; num != -1; num = p.ReadNum() {
+		card.Winning = append(card.Winning, num)
+	}
+
+	p.ReadChar()
+
+	num = p.ReadNum()
+	for ; num != -1; num = p.ReadNum() {
+		card.Numbers = append(card.Numbers, num)
+	}
+
+	slices.Sort(card.Winning)
+	slices.Sort(card.Numbers)
+
+	return card
+}
+
+type Card struct {
+	Winning, Numbers []int
+}
+
+func Day4() {
+	lines := MustReadFileLines("day4.input")
+
+	Println("Day 4")
+
+	cards := make([]Card, 0, len(lines))
+
+	for _, line := range lines {
+		parser := CardParser{Line: line}
+		cards = append(cards, parser.ReadCard())
+	}
+
+	numMatches := make([]int, len(cards))
+
+	{ // Part 1
+		for i, card := range cards {
+			wins, nums := card.Winning, card.Numbers
+			iWin, iNum := 0, 0
+			matches := 0
+
+			for iWin < len(wins) && iNum < len(nums) {
+				diff := wins[iWin] - nums[iNum]
+				if diff == 0 {
+					matches++
+					iNum++
+					iWin++
+				} else if diff < 0 {
+					iWin++
+				} else if diff > 0 {
+					iNum++
+				}
+			}
+
+			numMatches[i] = matches
+		}
+
+		total := 0
+		for _, matches := range numMatches {
+			total += (1 << matches) >> 1
+		}
+
+		Printf("\tPart 1: %d\n", total)
+	}
+
+	{ // Part 2
+		copies := make([]int, len(cards))
+		for i := range copies {
+			copies[i] = 1
+		}
+
+		// TODO this is slow
+		for i := range cards {
+			for k := 0; k < copies[i]; k++ {
+				for j := 1; j <= numMatches[i]; j++ {
+					copies[i+j]++
+				}
+			}
+		}
+
+		total := 0
+		for _, copies := range copies {
+			total += copies
+		}
+
+		Printf("\tPart 2: %d\n", total)
+	}
 }
 
 func main() {
