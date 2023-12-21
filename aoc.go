@@ -3,12 +3,23 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"unicode"
 )
+
+var AocOut io.Writer = os.Stdout
+
+func Printf(format string, args ...any) (n int, err error) {
+	return fmt.Fprintf(AocOut, format, args...)
+}
+
+func Println(args ...any) (n int, err error) {
+	return fmt.Fprintln(AocOut, args...)
+}
 
 func MustReadFileLines(path string) []string {
 	file, err := os.Open(path)
@@ -34,7 +45,7 @@ func MustReadFileLines(path string) []string {
 // Day 1
 
 func Day1() {
-	fmt.Println("Day 1")
+	Println("Day 1")
 	lines := MustReadFileLines("day1.input")
 
 	isDigit := func(r byte) bool {
@@ -69,7 +80,7 @@ func Day1() {
 			total += calibration
 		}
 
-		fmt.Printf("\tPart 1: %d\n", total)
+		Printf("\tPart 1: %d\n", total)
 
 	}
 
@@ -114,7 +125,7 @@ func Day1() {
 			total += calibration
 		}
 
-		fmt.Printf("\tPart 2: %d\n", total)
+		Printf("\tPart 2: %d\n", total)
 	}
 }
 
@@ -259,7 +270,7 @@ type Game struct {
 func Day2() {
 	lines := MustReadFileLines("day2.input")
 
-	fmt.Println("Day 2")
+	Println("Day 2")
 
 	games := make([]Game, 0, len(lines))
 	for _, line := range lines {
@@ -285,7 +296,7 @@ func Day2() {
 			}
 		}
 
-		fmt.Printf("\tPart 1: %d\n", totalPossible)
+		Printf("\tPart 1: %d\n", totalPossible)
 	}
 
 	{ // Part 2
@@ -300,7 +311,7 @@ func Day2() {
 			totalPower += minimum.Power()
 		}
 
-		fmt.Printf("\tPart 2: %d\n", totalPower)
+		Printf("\tPart 2: %d\n", totalPower)
 	}
 }
 
@@ -348,7 +359,6 @@ func Vec2Cmp(a, b Vec2) int {
 	} else if a.val < b.val {
 		return -1
 	}
-
 	return 0
 }
 
@@ -490,7 +500,7 @@ func NewSchematic(lines []string) Schematic {
 func Day3() {
 	lines := MustReadFileLines("day3.input")
 
-	fmt.Println("Day 3")
+	Println("Day 3")
 
 	schematic := NewSchematic(lines)
 
@@ -503,7 +513,7 @@ func Day3() {
 			}
 		}
 
-		fmt.Println("\tPart 1:", strconv.Itoa(total))
+		Println("\tPart 1:", strconv.Itoa(total))
 	}
 
 	{ // Part 2
@@ -535,12 +545,19 @@ func Day3() {
 			}
 		}
 
-		fmt.Println("\tPart 2:", strconv.Itoa(total))
+		Println("\tPart 2:", strconv.Itoa(total))
 	}
+}
+
+// Day 4
+
+func Day4() {
+
 }
 
 func main() {
 	Day1()
 	Day2()
 	Day3()
+	Day4()
 }
