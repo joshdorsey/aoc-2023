@@ -29,6 +29,12 @@ func BenchmarkDay4(b *testing.B) {
 	}
 }
 
+func BenchmarkDay5(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Day5()
+	}
+}
+
 func TestMain(m *testing.M) {
 	// Write to a file rather than io.Discard to be fair to a different
 	// benchmark whose timings I'm comparing against.

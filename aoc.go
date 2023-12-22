@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -42,17 +44,18 @@ func MustReadFileLines(path string) []string {
 	return lines
 }
 
+func IsDigit(b byte) bool {
+	return b >= '0' && b <= '9'
+}
+
 // Day 1
 
 func Day1() {
 	Println("Day 1")
 	lines := MustReadFileLines("day1.input")
 
-	isDigit := func(r byte) bool {
-		if r >= '0' && r <= '9' {
-			return true
-		}
-		return false
+	isDigit := func(b byte) bool {
+		return '0' <= b && b <= '9'
 	}
 
 	{ // Part 1
@@ -160,12 +163,12 @@ func (p *GameParser) ReadStr(str string) {
 func (p *GameParser) ReadNum() int {
 	p.SkipWs()
 
-	if !unicode.IsDigit(rune(p.Line[0])) {
+	if !IsDigit(p.Line[0]) {
 		return -1
 	}
 
 	i := 0
-	for ; unicode.IsDigit(rune(p.Line[i])); i++ {
+	for ; IsDigit(p.Line[i]); i++ {
 	}
 
 	numStr := p.Line[:i]
@@ -373,7 +376,7 @@ type Number struct {
 }
 
 type Symbol struct {
-	Value rune
+	Value byte
 	Pos   Vec2
 }
 
@@ -400,10 +403,10 @@ func (n Number) HasAdjacentSymbols(s Schematic) bool {
 		}
 	}
 
-	left := rune(s.At(n.Pos.Y(), n.Pos.X()-1))
-	right := rune(s.At(n.Pos.Y(), n.Pos.X()+int16(n.Length)))
-	if (left != '.' && !unicode.IsDigit(left)) ||
-		(right != '.' && !unicode.IsDigit(right)) {
+	left := s.At(n.Pos.Y(), n.Pos.X()-1)
+	right := s.At(n.Pos.Y(), n.Pos.X()+int16(n.Length))
+	if (left != '.' && !IsDigit(left)) ||
+		(right != '.' && !IsDigit(right)) {
 		return true
 	}
 
@@ -451,9 +454,9 @@ func (s *Schematic) build() {
 		for row, line := range s.Lines {
 			numDigits := int16(0)
 			for c := int16(0); c < int16(len(line)+1); c++ {
-				r := rune(s.At(int16(row), c))
+				r := s.At(int16(row), c)
 
-				if unicode.IsDigit(r) {
+				if IsDigit(r) {
 					numDigits++
 				} else {
 					if r == '*' {
@@ -593,7 +596,7 @@ func (p *CardParser) ReadChar() byte {
 func (p *CardParser) SkipNum() {
 	p.SkipWs()
 
-	for unicode.IsDigit(rune(p.Line[0])) {
+	for IsDigit(p.Line[0]) {
 		p.Line = p.Line[1:]
 	}
 }
@@ -601,12 +604,12 @@ func (p *CardParser) SkipNum() {
 func (p *CardParser) ReadNum() int {
 	p.SkipWs()
 
-	if p.IsEol() || !unicode.IsDigit(rune(p.Line[0])) {
+	if p.IsEol() || !IsDigit(p.Line[0]) {
 		return -1
 	}
 
 	i := 0
-	for ; i < len(p.Line) && unicode.IsDigit(rune(p.Line[i])); i++ {
+	for ; i < len(p.Line) && IsDigit(p.Line[i]); i++ {
 	}
 
 	numStr := p.Line[:i]
@@ -697,12 +700,9 @@ func Day4() {
 			copies[i] = 1
 		}
 
-		// TODO this is slow
 		for i := range cards {
-			for k := 0; k < copies[i]; k++ {
-				for j := 1; j <= numMatches[i]; j++ {
-					copies[i+j]++
-				}
+			for j := 1; j <= numMatches[i]; j++ {
+				copies[i+j] += copies[i]
 			}
 		}
 
@@ -715,9 +715,167 @@ func Day4() {
 	}
 }
 
+// Day 5
+
+type IntMap struct {
+	DstStarts, SrcStarts, Lengths []int64
+}
+
+func (m *IntMap) Insert(dstStart, srcStart, length int64) {
+	m.DstStarts = append(m.DstStarts, dstStart)
+	m.SrcStarts = append(m.SrcStarts, srcStart)
+	m.Lengths = append(m.Lengths, length)
+}
+
+func (m *IntMap) Len() int {
+	return len(m.SrcStarts)
+}
+
+func (m *IntMap) Swap(i, j int) {
+	m.SrcStarts[i], m.SrcStarts[j] = m.SrcStarts[j], m.SrcStarts[i]
+	m.DstStarts[i], m.DstStarts[j] = m.DstStarts[j], m.DstStarts[i]
+	m.Lengths[i], m.Lengths[j] = m.Lengths[j], m.Lengths[i]
+}
+
+func (m *IntMap) Less(i, j int) bool {
+	return m.SrcStarts[i] < m.SrcStarts[j]
+}
+
+func (m *IntMap) Map(v int64) int64 {
+	i, found := slices.BinarySearch(m.SrcStarts, v)
+	if !found {
+		// Get the next-lowest element (or -1)
+		i -= 1
+	}
+
+	if i < 0 {
+		return v
+	}
+
+	off := v - m.SrcStarts[i]
+	if off >= 0 && off <= m.Lengths[i] {
+		return m.DstStarts[i] + off
+	}
+
+	return v
+}
+
+type Almanac struct {
+	SeedToSoil     IntMap
+	SoilToFert     IntMap
+	FertToWater    IntMap
+	WaterToLight   IntMap
+	LightToTemp    IntMap
+	TempToHumidity IntMap
+	HumidityToLoc  IntMap
+}
+
+func (a Almanac) SeedToLocation(seed int64) int64 {
+	soil := a.SeedToSoil.Map(seed)
+	fert := a.SoilToFert.Map(soil)
+	water := a.FertToWater.Map(fert)
+	light := a.WaterToLight.Map(water)
+	temp := a.LightToTemp.Map(light)
+	humidity := a.TempToHumidity.Map(temp)
+	loc := a.HumidityToLoc.Map(humidity)
+	return loc
+}
+
+func ReadAlmanac(lines []string, a *Almanac, s *[]int64) {
+	readNumList := func(line string, numValues int) []int64 {
+		result := make([]int64, 0, numValues)
+		numStrs := strings.Fields(line)
+
+		for _, str := range numStrs {
+			val, err := strconv.ParseInt(str, 10, 64)
+			if err != nil {
+				panic(err)
+			}
+
+			result = append(result, int64(val))
+		}
+
+		return result
+	}
+
+	*s = readNumList(lines[0][len("seeds: "):], 100)
+
+	lines = lines[2:]
+
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+
+		dst := (*IntMap)(nil)
+
+		switch line {
+		case "seed-to-soil map:":
+			dst = &a.SeedToSoil
+		case "soil-to-fertilizer map:":
+			dst = &a.SoilToFert
+		case "fertilizer-to-water map:":
+			dst = &a.FertToWater
+		case "water-to-light map:":
+			dst = &a.WaterToLight
+		case "light-to-temperature map:":
+			dst = &a.LightToTemp
+		case "temperature-to-humidity map:":
+			dst = &a.TempToHumidity
+		case "humidity-to-location map:":
+			dst = &a.HumidityToLoc
+		default:
+			break
+		}
+
+		i++
+		for ; i < len(lines) && lines[i] != ""; i++ {
+			nums := readNumList(lines[i], 3)
+			dst.Insert(nums[0], nums[1], nums[2])
+		}
+		sort.Sort(dst)
+	}
+}
+
+func Day5() {
+	lines := MustReadFileLines("day5.input")
+
+	Println("Day 5")
+
+	almanac := Almanac{}
+	seeds := make([]int64, 0, 100)
+	ReadAlmanac(lines, &almanac, &seeds)
+
+	{ // Part 1
+		min := int64(math.MaxInt64)
+		for _, seed := range seeds {
+			loc := almanac.SeedToLocation(seed)
+			if loc < min {
+				min = loc
+			}
+		}
+
+		Printf("\tPart 1: %d\n", min)
+	}
+
+	{ // Part 2
+		min := int64(math.MaxInt64)
+		for i := 0; i < len(seeds); i += 2 {
+			start, length := seeds[i], seeds[i+1]
+			for s := start; s < start+length; s++ {
+				loc := almanac.SeedToLocation(s)
+				if loc < min {
+					min = loc
+				}
+			}
+		}
+
+		Printf("\tPart 2: %d\n", min)
+	}
+}
+
 func main() {
 	Day1()
 	Day2()
 	Day3()
 	Day4()
+	Day5()
 }
