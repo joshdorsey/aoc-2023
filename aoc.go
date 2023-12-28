@@ -52,6 +52,7 @@ func IsDigit(b byte) bool {
 
 func Day1() {
 	Println("Day 1")
+
 	lines := MustReadFileLines("day1.input")
 
 	isDigit := func(b byte) bool {
@@ -271,9 +272,9 @@ type Game struct {
 }
 
 func Day2() {
-	lines := MustReadFileLines("day2.input")
-
 	Println("Day 2")
+
+	lines := MustReadFileLines("day2.input")
 
 	games := make([]Game, 0, len(lines))
 	for _, line := range lines {
@@ -501,9 +502,9 @@ func NewSchematic(lines []string) Schematic {
 }
 
 func Day3() {
-	lines := MustReadFileLines("day3.input")
-
 	Println("Day 3")
+
+	lines := MustReadFileLines("day3.input")
 
 	schematic := NewSchematic(lines)
 
@@ -651,9 +652,9 @@ type Card struct {
 }
 
 func Day4() {
-	lines := MustReadFileLines("day4.input")
-
 	Println("Day 4")
+
+	lines := MustReadFileLines("day4.input")
 
 	cards := make([]Card, 0, len(lines))
 
@@ -701,8 +702,8 @@ func Day4() {
 		}
 
 		for i := range cards {
-			for j := 1; j <= numMatches[i]; j++ {
-				copies[i+j] += copies[i]
+			for j := 0; j < numMatches[i]; j++ {
+				copies[i+j+1] += copies[i]
 			}
 		}
 
@@ -758,6 +759,11 @@ func (m *IntMap) Map(v int64) int64 {
 	}
 
 	return v
+}
+
+func IntMapCombine(a, b IntMap) IntMap {
+	//
+	return IntMap{}
 }
 
 type Almanac struct {
